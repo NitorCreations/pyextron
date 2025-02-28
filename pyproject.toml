@@ -1,0 +1,16 @@
+[project]
+name = "pyextron"
+version = "0.1.0"
+description = "Library for communicating with Extron devices"
+readme = "README.md"
+authors = [
+    {name = "Sam Stenvall", email = "sam.stenvall@nitor.com"},
+]
+classifiers = [
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+]
+requires-python = ">=3.11"
+dependencies = [
+    "pytelnetdevice @ git+https://github.com/NitorCreations/pytelnetdevice@daa840f"
+]
