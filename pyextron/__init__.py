@@ -48,7 +48,7 @@ class ExtronDevice(TelnetDevice):
             await self._writer.drain()
             await self._read_until("Login Administrator\r\n")
 
-    async def _run_command_internal(self, command: str):
+    async def _run_command_internal(self, command: str) -> str | None:
         async with self._semaphore:
             self._writer.write(f"{command}\n".encode())
             await self._writer.drain()
@@ -60,7 +60,7 @@ class ExtronDevice(TelnetDevice):
             response = await asyncio.wait_for(self._run_command_internal(command), timeout=3)
 
             if response is None:
-                raise RuntimeError("Command failed")
+                raise RuntimeError("Command failed, got no response")
 
             if is_error_response(response):
                 raise ResponseError(f"Command failed with error code {response}")
