@@ -58,16 +58,20 @@ class ExtronDevice(TelnetDevice):
     async def run_command(self, command: str) -> str:
         try:
             logger.debug(f"Sending command: {command}")
-            response = await asyncio.wait_for(self._run_command_internal(command), timeout=3)
-            logger.debug(f"Received response: {response}")
+            response = await asyncio.wait_for(
+                self._run_command_internal(command), timeout=3
+            )
 
             if response is None:
                 raise RuntimeError("Command failed, got no response")
 
+            response = response.strip()
+            logger.debug(f"Received response: {response}")
+
             if is_error_response(response):
                 raise ResponseError(f"Command failed with error code {response}")
 
-            return response.strip()
+            return response
         except TimeoutError:
             raise RuntimeError("Command timed out")
         except (ConnectionResetError, BrokenPipeError):
@@ -75,7 +79,9 @@ class ExtronDevice(TelnetDevice):
             raise RuntimeError("Connection was reset")
         finally:
             if not self.is_connected():
-                logger.warning("Connection seems to be broken, will attempt to reconnect")
+                logger.warning(
+                    "Connection seems to be broken, will attempt to reconnect"
+                )
                 await self.reconnect()
 
     async def query_model_name(self) -> str:
