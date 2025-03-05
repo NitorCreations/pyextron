@@ -57,7 +57,9 @@ class ExtronDevice(TelnetDevice):
 
     async def run_command(self, command: str) -> str:
         try:
+            logger.debug(f"Sending command: {command}")
             response = await asyncio.wait_for(self._run_command_internal(command), timeout=3)
+            logger.debug(f"Received response: {response}")
 
             if response is None:
                 raise RuntimeError("Command failed, got no response")
