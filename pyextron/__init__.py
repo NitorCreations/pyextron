@@ -37,7 +37,6 @@ class ExtronDevice(TelnetDevice):
     async def after_connect(self):
         try:
             await asyncio.wait_for(self.attempt_login(), timeout=5)
-            self._connected = True
             logger.info(f"Connected and authenticated to {self._host}:{self._port}")
         except TimeoutError:
             raise AuthenticationError()
@@ -49,7 +48,7 @@ class ExtronDevice(TelnetDevice):
             await self._writer.drain()
             await self._read_until("Login Administrator\r\n")
 
-    async def _run_command_internal(self, command: str):
+    async def _run_command_internal(self, command: str) -> str | None:
         async with self._semaphore:
             self._writer.write(f"{command}\n".encode())
             await self._writer.drain()
@@ -58,10 +57,12 @@ class ExtronDevice(TelnetDevice):
 
     async def run_command(self, command: str) -> str:
         try:
+            logger.debug(f"Sending command: {command}")
             response = await asyncio.wait_for(self._run_command_internal(command), timeout=3)
+            logger.debug(f"Received response: {response}")
 
             if response is None:
-                raise RuntimeError("Command failed")
+                raise RuntimeError("Command failed, got no response")
 
             if is_error_response(response):
                 raise ResponseError(f"Command failed with error code {response}")
@@ -70,10 +71,10 @@ class ExtronDevice(TelnetDevice):
         except TimeoutError:
             raise RuntimeError("Command timed out")
         except (ConnectionResetError, BrokenPipeError):
-            self._connected = False
+            await self.disconnect()
             raise RuntimeError("Connection was reset")
         finally:
-            if not self._connected:
+            if not self.is_connected():
                 logger.warning("Connection seems to be broken, will attempt to reconnect")
                 await self.reconnect()
 
