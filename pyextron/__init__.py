@@ -1,7 +1,6 @@
 import asyncio
 import logging
 import re
-
 from asyncio.exceptions import TimeoutError
 from enum import Enum
 
@@ -30,23 +29,29 @@ def is_error_response(response: str) -> bool:
 
 
 class ExtronDevice(TelnetDevice):
-    def __init__(self, host: str, port: int, password: str) -> None:
-        super().__init__(host, port)
+    def __init__(self, host: str, port: int, password: str, timeout: int = 5) -> None:
+        super().__init__(host, port, timeout)
         self._password = password
 
     async def after_connect(self):
-        try:
-            await asyncio.wait_for(self.attempt_login(), timeout=5)
-            logger.info(f"Connected and authenticated to {self._host}:{self._port}")
-        except TimeoutError:
-            raise AuthenticationError()
+        logger.debug("Attempting login")
+        await asyncio.wait_for(self.attempt_login(), timeout=self._timeout)
+        logger.info(f"Connected and authenticated to {self._host}:{self._port}")
 
     async def attempt_login(self):
         async with self._semaphore:
             await self._read_until("Password:")
-            self._writer.write(f"{self._password}\r".encode())
+            logger.debug("Device is asking for password, entering")
+            self._writer.write(f"{self._password}\n".encode())
             await self._writer.drain()
-            await self._read_until("Login Administrator\r\n")
+
+            # Read a bit forward to see if it's asking for a password again (which means we entered the wrong password)
+            resp = await self._reader.readexactly(10)
+            if resp.decode().strip() == "Password":
+                raise AuthenticationError("Authentication failed, probably wrong password")
+
+            # Read away the "Login Administrator" line
+            await self._read_until("\n")
 
     async def _run_command_internal(self, command: str) -> str | None:
         async with self._semaphore:
@@ -58,9 +63,7 @@ class ExtronDevice(TelnetDevice):
     async def run_command(self, command: str) -> str:
         try:
             logger.debug(f"Sending command: {command}")
-            response = await asyncio.wait_for(
-                self._run_command_internal(command), timeout=3
-            )
+            response = await asyncio.wait_for(self._run_command_internal(command), timeout=self._timeout)
 
             if response is None:
                 raise RuntimeError("Command failed, got no response")
@@ -73,15 +76,14 @@ class ExtronDevice(TelnetDevice):
 
             return response
         except TimeoutError:
-            raise RuntimeError("Command timed out")
+            await self.disconnect()
+            raise RuntimeError("Command timed out, disconnecting")
         except (ConnectionResetError, BrokenPipeError):
             await self.disconnect()
             raise RuntimeError("Connection was reset")
         finally:
             if not self.is_connected():
-                logger.warning(
-                    "Connection seems to be broken, will attempt to reconnect"
-                )
+                logger.warning("Connection seems to be broken, will attempt to reconnect")
                 await self.reconnect()
 
     async def query_model_name(self) -> str:
