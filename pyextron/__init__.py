@@ -29,13 +29,13 @@ def is_error_response(response: str) -> bool:
 
 
 class ExtronDevice(TelnetDevice):
-    def __init__(self, host: str, port: int, password: str) -> None:
-        super().__init__(host, port)
+    def __init__(self, host: str, port: int, password: str, timeout: int = 5) -> None:
+        super().__init__(host, port, timeout)
         self._password = password
 
     async def after_connect(self):
         logger.debug("Attempting login")
-        await asyncio.wait_for(self.attempt_login(), timeout=5)
+        await asyncio.wait_for(self.attempt_login(), timeout=self._timeout)
         logger.info(f"Connected and authenticated to {self._host}:{self._port}")
 
     async def attempt_login(self):
@@ -63,7 +63,7 @@ class ExtronDevice(TelnetDevice):
     async def run_command(self, command: str) -> str:
         try:
             logger.debug(f"Sending command: {command}")
-            response = await asyncio.wait_for(self._run_command_internal(command), timeout=3)
+            response = await asyncio.wait_for(self._run_command_internal(command), timeout=self._timeout)
 
             if response is None:
                 raise RuntimeError("Command failed, got no response")
