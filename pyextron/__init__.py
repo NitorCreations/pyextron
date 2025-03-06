@@ -76,7 +76,8 @@ class ExtronDevice(TelnetDevice):
 
             return response
         except TimeoutError:
-            raise RuntimeError("Command timed out")
+            await self.disconnect()
+            raise RuntimeError("Command timed out, disconnecting")
         except (ConnectionResetError, BrokenPipeError):
             await self.disconnect()
             raise RuntimeError("Connection was reset")
