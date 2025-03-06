@@ -12,7 +12,7 @@ classifiers = [
 ]
 requires-python = ">=3.11"
 dependencies = [
-    "pytelnetdevice @ git+https://github.com/NitorCreations/pytelnetdevice@e9545ee"
+    "pytelnetdevice @ git+https://github.com/NitorCreations/pytelnetdevice@2f93612"
 ]
 
 [tool.ruff]
