@@ -34,18 +34,24 @@ class ExtronDevice(TelnetDevice):
         self._password = password
 
     async def after_connect(self):
-        try:
-            await asyncio.wait_for(self.attempt_login(), timeout=5)
-            logger.info(f"Connected and authenticated to {self._host}:{self._port}")
-        except TimeoutError:
-            raise AuthenticationError()
+        logger.debug("Attempting login")
+        await asyncio.wait_for(self.attempt_login(), timeout=5)
+        logger.info(f"Connected and authenticated to {self._host}:{self._port}")
 
     async def attempt_login(self):
         async with self._semaphore:
             await self._read_until("Password:")
-            self._writer.write(f"{self._password}\r".encode())
+            logger.debug("Device is asking for password, entering")
+            self._writer.write(f"{self._password}\n".encode())
             await self._writer.drain()
-            await self._read_until("Login Administrator\r\n")
+
+            # Read a bit forward to see if it's asking for a password again (which means we entered the wrong password)
+            resp = await self._reader.readexactly(10)
+            if resp.decode().strip() == "Password":
+                raise AuthenticationError("Authentication failed, probably wrong password")
+
+            # Read away the "Login Administrator" line
+            await self._read_until("\n")
 
     async def _run_command_internal(self, command: str) -> str | None:
         async with self._semaphore:
