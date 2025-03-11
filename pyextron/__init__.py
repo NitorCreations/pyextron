@@ -36,29 +36,27 @@ class ExtronDevice(TelnetDevice):
     async def after_connect(self):
         logger.debug("Attempting login")
         await asyncio.wait_for(self.attempt_login(), timeout=self._timeout)
-        logger.info(f"Connected and authenticated to {self._host}:{self._port}")
+        logger.debug(f"Connected and authenticated to {self._host}:{self._port}")
 
     async def attempt_login(self):
-        async with self._semaphore:
-            await self._read_until("Password:")
-            logger.debug("Device is asking for password, entering")
-            self._writer.write(f"{self._password}\n".encode())
-            await self._writer.drain()
+        await self._read_until("Password:")
+        logger.debug("Device is asking for password, entering")
+        self._writer.write(f"{self._password}\n".encode())
+        await self._writer.drain()
 
-            # Read a bit forward to see if it's asking for a password again (which means we entered the wrong password)
-            resp = await self._reader.readexactly(10)
-            if resp.decode().strip() == "Password":
-                raise AuthenticationError("Authentication failed, probably wrong password")
+        # Read a bit forward to see if it's asking for a password again (which means we entered the wrong password)
+        resp = await self._reader.readexactly(10)
+        if resp.decode().strip() == "Password":
+            raise AuthenticationError("Authentication failed, probably wrong password")
 
-            # Read away the "Login Administrator" line
-            await self._read_until("\n")
+        # Read away the "Login Administrator" line
+        await self._read_until("\n")
 
     async def _run_command_internal(self, command: str) -> str | None:
-        async with self._semaphore:
-            self._writer.write(f"{command}\n".encode())
-            await self._writer.drain()
+        self._writer.write(f"{command}\n".encode())
+        await self._writer.drain()
 
-            return await self._read_until("\r\n")
+        return await self._read_until("\r\n")
 
     async def run_command(self, command: str) -> str:
         try:
@@ -81,10 +79,6 @@ class ExtronDevice(TelnetDevice):
         except (ConnectionResetError, BrokenPipeError):
             await self.disconnect()
             raise RuntimeError("Connection was reset")
-        finally:
-            if not self.is_connected():
-                logger.warning("Connection seems to be broken, will attempt to reconnect")
-                await self.reconnect()
 
     async def query_model_name(self) -> str:
         return await self.run_command("1I")
